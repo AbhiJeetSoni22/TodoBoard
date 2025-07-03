@@ -1,5 +1,5 @@
 import ActionLog from '../models/ActionLog.schema.js';
-import { io } from '../server.js';
+import { io } from '../index.js';
 
 const actionLogger = async (req, res, next) => {
   const { method, path, body, user } = req;

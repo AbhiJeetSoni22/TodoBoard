@@ -1,6 +1,6 @@
-import Task from '../models/Task.js';
-import User from '../models/User.js';
-import { io } from '../server.js';
+import Task from '../models/Task.schema.js';
+import User from '../models/User.schema.js';
+import { io } from '../index.js';
 
 export const createTask = async (req, res) => {
   const { title, description, priority } = req.body;

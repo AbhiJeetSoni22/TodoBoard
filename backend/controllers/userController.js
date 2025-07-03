@@ -44,3 +44,12 @@ export const login = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+export const getUser= async(req,res)=>{
+  try {
+ const users = await User.find().select('name _id');
+    res.json({message:"user authenticated", data:users})
+  } catch (error) {
+    
+  }
+}

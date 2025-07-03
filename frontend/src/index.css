@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+body {
+  background: linear-gradient(to bottom right, #e0e7ff, #e9d5ff);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
