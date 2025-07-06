@@ -5,7 +5,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 
 import AuthContextProvider from './context/AuthContext.jsx';
-import KanbanBoard from './pages/KanBanBoard.jsx';
+import KanbanBoard from './pages/KanbanBoard.jsx';
 
 function App() {
   return (
