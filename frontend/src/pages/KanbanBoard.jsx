@@ -91,7 +91,7 @@ const KanbanBoard = () => {
   const [conflict, setConflict] = useState(null);
   const { user, socket, logout,loading,haveToken } = useContext(AuthContext);
   const navigate = useNavigate();
-
+  
 
   useEffect(() => {
     
@@ -99,14 +99,7 @@ const KanbanBoard = () => {
     navigate('/login');
   }
 }, [user, loading, navigate,logout]);
-
-
-  useEffect(() => {
-   
-      
-   
-
-    const fetchData = async () => {
+ const fetchData = async () => {
       try {
         const [tasksRes, actionsRes, usersRes] = await Promise.all([
           axios.get(`${import.meta.env.VITE_API_URL}/api/tasks`, {
@@ -119,7 +112,7 @@ const KanbanBoard = () => {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           }),
         ]);
-      
+       
         setTasks(tasksRes.data);
         setActions(actionsRes.data);
         setUsers(usersRes.data);
@@ -127,6 +120,8 @@ const KanbanBoard = () => {
         if (err.response?.status === 401) logout();
       }
     };
+
+  useEffect(() => {
 
     if(user){
 
@@ -136,7 +131,14 @@ const KanbanBoard = () => {
 
     if (socket) {
       socket.on('taskUpdate', (updatedTask) => {
-        setTasks((prev) => prev.map((task) => (task._id === updatedTask._id ? updatedTask : task)));
+        setTasks((prev) => {
+          const exists = prev.some((task) => task._id === updatedTask._id);
+          if (exists) {
+            return prev.map((task) => (task._id === updatedTask._id ? updatedTask : task));
+          } else {
+            return [updatedTask, ...prev];
+          }
+        });
       });
       socket.on('taskDelete', (taskId) => {
         setTasks((prev) => prev.filter((task) => task._id !== taskId));
@@ -151,7 +153,7 @@ const KanbanBoard = () => {
         socket.off('actionUpdate');
       };
     }
-  }, [user, socket, navigate, logout]);
+  },  [user, socket, navigate, logout,isModalOpen]);
 
   const handleDrop = async (taskId, newStatus) => {
     try {
@@ -174,6 +176,8 @@ const KanbanBoard = () => {
   const handleCreate = () => {
     setCurrentTask(null);
     setIsModalOpen(true);
+    fetchData();
+  
   };
 
   const handleDelete = async (taskId) => {
@@ -188,11 +192,14 @@ const KanbanBoard = () => {
 
   const handleSmartAssign = async (taskId) => {
     try {
+   const res =
       await axios.post(
         `${import.meta.env.VITE_API_URL}/api/tasks/${taskId}/smart-assign`,
         {},
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
+     console.log('actions array ',actions)
+    
     } catch (err) {
       console.error(err);
     }
@@ -253,7 +260,7 @@ const KanbanBoard = () => {
             {actions.map((action) => (
               <div key={action._id} className="p-2 bg-white/60 rounded-lg">
                 <p className="text-sm text-gray-600">
-                  <span className="font-semibold">{action.user?.name}</span> {action.action}: {action.details}
+                  <span className="font-semibold">{action.details}</span> 
                 </p>
                 <p className="text-xs text-gray-500">{new Date(action.timestamp).toLocaleString()}</p>
               </div>

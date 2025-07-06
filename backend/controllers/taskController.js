@@ -1,9 +1,10 @@
 import Task from '../models/Task.schema.js';
 import User from '../models/User.schema.js';
+import ActionLog from '../models/ActionLog.schema.js';
 import { io } from '../index.js';
 
 export const createTask = async (req, res) => {
-  const { title, description, priority } = req.body;
+  const { title, description, priority,assignedUser } = req.body;
   const forbiddenTitles = ['Todo', 'In Progress', 'Done'];
 
   try {
@@ -20,13 +21,17 @@ export const createTask = async (req, res) => {
       title,
       description,
       priority,
-      assignedUser: req.user.id,
+      assignedUser,
+      lastModified: Date.now(),
     });
 
     await task.save();
-    io.emit('taskUpdate', task);
-    res.status(201).json(task);
+    const populatedTask = await task.populate('assignedUser', 'name');
+    res.locals.task = populatedTask; // Store for actionLogger
+    io.emit('taskUpdate', populatedTask);
+    res.status(201).json(populatedTask);
   } catch (err) {
+    console.error('Create task error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -36,6 +41,7 @@ export const getTasks = async (req, res) => {
     const tasks = await Task.find().populate('assignedUser', 'name');
     res.json(tasks);
   } catch (err) {
+    console.error('Get tasks error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -50,7 +56,6 @@ export const updateTask = async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    // Conflict detection
     if (lastModified && new Date(lastModified) < task.lastModified) {
       return res.status(409).json({
         message: 'Conflict detected',
@@ -72,7 +77,7 @@ export const updateTask = async (req, res) => {
 
     task.title = title || task.title;
     task.description = description || task.description;
-    task.assignedUser = assignedUser || task.assignedUser;
+    task.assignedUser = assignedUser !== undefined ? assignedUser : task.assignedUser;
     task.status = status || task.status;
     task.priority = priority || task.priority;
     task.lastModified = Date.now();
@@ -82,6 +87,7 @@ export const updateTask = async (req, res) => {
     io.emit('taskUpdate', updatedTask);
     res.json(updatedTask);
   } catch (err) {
+    console.error('Update task error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -97,45 +103,64 @@ export const deleteTask = async (req, res) => {
     io.emit('taskDelete', req.params.id);
     res.json({ message: 'Task deleted' });
   } catch (err) {
+    console.error('Delete task error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
 export const smartAssign = async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findById(req.params.taskId);
     if (!task) {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    // Find user with fewest active tasks
     const users = await User.find();
-    let minTasks = Infinity;
-    let selectedUser = null;
-
-    for (const user of users) {
-      const taskCount = await Task.countDocuments({
-        assignedUser: user._id,
-        status: { $in: ['Todo', 'In Progress'] },
-      });
-      if (taskCount < minTasks) {
-        minTasks = taskCount;
-        selectedUser = user;
-      }
-    }
-
-    if (!selectedUser) {
+    if (users.length === 0) {
       return res.status(404).json({ message: 'No users found' });
     }
 
+    const userTaskCounts = await Promise.all(
+      users.map(async (user) => {
+        const taskCount = await Task.countDocuments({
+          assignedUser: user._id,
+          status: { $in: ['Todo', 'In Progress'] },
+        });
+        return { user, taskCount };
+      })
+    );
+
+    const selectedUser = userTaskCounts.reduce((min, curr) =>
+      curr.taskCount < min.taskCount || (curr.taskCount === min.taskCount && curr.user.name < min.user.name) ? curr : min
+    ).user;
+
+   
+
     task.assignedUser = selectedUser._id;
+    // const assignedUserdata = await User.findOne(task.assignedUser)
+    // console.log('assigned user data ',assignedUserdata)
     task.lastModified = Date.now();
     await task.save();
 
-    const updatedTask = await Task.findById(req.params.id).populate('assignedUser', 'name');
+    const updatedTask = await Task.findById(req.params.taskId).populate('assignedUser', 'name');
+
+    // Log the Smart Assign action
+    const actionLog = new ActionLog({
+      user: task.assignedUser,
+      action: 'smart-assign',
+      taskId: req.params.taskId,
+      details: `Smart-assigned task: ${updatedTask.title || 'Unknown'} to ${updatedTask.assignedUser?.name || 'Unknown'}`,
+      timestamp: new Date(),
+    });
+    await actionLog.save();
+    const populatedAction = await ActionLog.findById(actionLog._id).populate('user', 'name');
+    io.emit('actionUpdate', populatedAction);
+  
     io.emit('taskUpdate', updatedTask);
+  
     res.json(updatedTask);
   } catch (err) {
+    console.error('Smart Assign error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

@@ -26,7 +26,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/users', userRoutes);
-app.use('/api/tasks', authMiddleware, actionLogger, taskRoutes);
+app.use('/api/tasks', authMiddleware, taskRoutes);
 app.use('/api/actions', authMiddleware, actionRoutes);
 
 // Socket.IO for real-time updates
